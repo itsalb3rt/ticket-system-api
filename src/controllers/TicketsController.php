@@ -6,6 +6,7 @@ use App\plugins\QueryStringPurifier;
 use App\plugins\SecureApi;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Request;
+use App\models\EmployeesAssignedTickets\EmployeesAssignedTicketsModel;
 
 class TicketsController extends Controller
 {
@@ -23,6 +24,7 @@ class TicketsController extends Controller
     public function tickets($idTicket = null)
     {
         $ticketsModel = new TicketsModel();
+        $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
 
         switch ($this->request->server->get('REQUEST_METHOD')) {
             case 'GET':
@@ -34,9 +36,15 @@ class TicketsController extends Controller
                         $qString->getSorting(),
                         $qString->getOffset(),
                         $qString->getLimit());
+                    foreach ($tickets as $ticket){
+                        $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+                    }
                     $this->response->setContent(json_encode($tickets));
                 } else {
                     $ticket = $ticketsModel->getById($idTicket);
+                    if(!empty($ticket)){
+                        $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+                    }
                     $this->response->setContent(json_encode($ticket));
                 }
                 $this->response->setStatusCode(200)->send();
@@ -44,10 +52,17 @@ class TicketsController extends Controller
             case 'POST':
                 $newTicket = json_decode(file_get_contents('php://input'), true);
                 $this->isValidTicketStructure($newTicket);
+                $assignedEmployess = $newTicket['employees'];
 
                 $newTicket = $this->formatterNewTicket($newTicket);
                 $newTicketId = $ticketsModel->create($newTicket);
                 $newTicket = $ticketsModel->getById($newTicketId);
+
+                $employeesAssignedTicketsModel = new EmployeesAssignedTicketsModel();
+
+                foreach ($assignedEmployess as $idemployee){
+                    $employeesAssignedTicketsModel->create(['id_employee'=>$idemployee,'id_ticket'=>$newTicketId]);
+                }
 
                 $this->response->setContent(json_encode($newTicket))->setStatusCode(201)->send();
                 break;
@@ -67,7 +82,7 @@ class TicketsController extends Controller
 
     private function isValidTicketStructure($newTicket)
     {
-        $basicStructure = ['subject', 'id_employee', 'description'];
+        $basicStructure = ['subject', 'employees', 'description'];
         $errors = [];
         if ($newTicket === null)
             $errors[] = "Not json found";
@@ -96,7 +111,6 @@ class TicketsController extends Controller
         $formatter = [
             "subject" => $newTicket['subject'],
             "status" => "open",
-            "id_employee" => $newTicket["id_employee"],
             "description" => $newTicket["description"]
         ];
 
