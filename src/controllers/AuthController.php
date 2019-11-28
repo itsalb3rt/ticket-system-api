@@ -32,7 +32,7 @@ class AuthController extends Controller
                 unset($employee->password);
                 $token = new Tokenista('Bearer');
                 $token = $token->generate();
-                $employeesModel->token = $token;
+                $employee->token = $token;
                 $employeesModel->update($employee->id_employee, ['token' => $token]);
                 $this->response->setContent(json_encode($employee));
                 $this->response->setStatusCode(200);
