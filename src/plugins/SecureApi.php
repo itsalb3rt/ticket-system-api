@@ -53,8 +53,7 @@ class SecureApi
     {
         $employeeToken = str_replace('Bearer ', '', $this->request->headers->get('authorization'));
         $employeeModel = new EmployeesModel();
-        $employee = $employee->getByToken($employeeToken);
-
+        $employee = $employeeModel->getByToken($employeeToken);
         if (empty($employee)) {
             $this->response->setContent('Forbidden');
             $this->response->setStatusCode(403);
