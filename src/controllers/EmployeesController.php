@@ -38,8 +38,8 @@ class EmployeesController extends Controller
                     $this->removeConfidentialInformationFromEmployees($employess);
                     $this->response->setContent(json_encode($employess));
                 } else {
-                    $service = $employeesModel->getById($idEmployee);
-                    $this->response->setContent(json_encode($service));
+                    $employee = $employeesModel->getById($idEmployee);
+                    $this->response->setContent(json_encode($employee));
                 }
                 $this->response->setStatusCode(200)->send();
                 break;
