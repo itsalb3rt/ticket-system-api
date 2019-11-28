@@ -20,4 +20,13 @@ class EmployeesAssignedTicketsModel extends Model
             ->table('employees_assigned_tickets')
             ->insert($data);
     }
+
+    public function getByTicketId($ticketId){
+        return $this->db()
+            ->select('employees.id_employee, employees.first_name, employees.last_name, employees.email,employees_assigned_tickets.create_at')
+            ->table('employees_assigned_tickets')
+            ->innerJoin('employees','employees.id_employee','=','employees_assigned_tickets.id_employee')
+            ->where('id_ticket','=',$ticketId)
+            ->getAll();
+    }
 }
