@@ -3,6 +3,7 @@
 
 use App\models\Employees\EmployeesModel;
 use App\plugins\QueryStringPurifier;
+use App\plugins\SecureApi;
 use Egulias\EmailValidator\EmailValidator;
 use Egulias\EmailValidator\Validation\RFCValidation;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,6 +16,7 @@ class EmployeesController extends Controller
 
     public function __construct()
     {
+        new SecureApi();
         $this->request = Request::createFromGlobals();
         $this->response = new Response();
         $this->response->headers->set('content-type', 'application/json');
@@ -27,16 +29,17 @@ class EmployeesController extends Controller
             case 'GET':
                 if ($idEmployee === null) {
                     $qString = new QueryStringPurifier();
-                    $employes = $employeesModel->getAll($qString->getFields(),
+                    $employess = $employeesModel->getAll($qString->getFields(),
                         $qString->fieldsToFilter(),
                         $qString->getOrderBy(),
                         $qString->getSorting(),
                         $qString->getOffset(),
                         $qString->getLimit());
-                    $this->response->setContent(json_encode($employes));
+                    $this->removeConfidentialInformationFromEmployees($employess);
+                    $this->response->setContent(json_encode($employess));
                 } else {
-                    $service = $employeesModel->getById($idEmployee);
-                    $this->response->setContent(json_encode($service));
+                    $employee = $employeesModel->getById($idEmployee);
+                    $this->response->setContent(json_encode($employee));
                 }
                 $this->response->setStatusCode(200)->send();
                 break;
@@ -101,5 +104,12 @@ class EmployeesController extends Controller
             "password" => $this->passwordHasing($newEmployee['password'])
         ];
         return $formatterEmployee;
+    }
+
+    private function removeConfidentialInformationFromEmployees($employees){
+        foreach ($employees as $employee){
+            unset($employee->password);
+            unset($employee->token);
+        }
     }
 }
