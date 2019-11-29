@@ -110,6 +110,13 @@ class NotesController extends Controller
         }
     }
 
+    /**
+     * Check if the user request for delete have a permission to due the action
+     *
+     * The normal users no have permission for delete other users notes, only the admins can due this
+     * @param stdClass $note
+     * @return bool
+     */
     private function employeeHasAuthorizationToDeleteTimeEntry(stdClass $note): bool
     {
         $employeesModel = new EmployeesModel();
