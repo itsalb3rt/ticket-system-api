@@ -21,7 +21,7 @@ class TicketsController extends Controller
         $this->response->headers->set('content-type', 'application/json');
     }
 
-    public function tickets($idTicket = null)
+    public function tickets($idTicket = null, $entity = null, $entityId = null)
     {
         $ticketsModel = new TicketsModel();
         $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
@@ -36,13 +36,13 @@ class TicketsController extends Controller
                         $qString->getSorting(),
                         $qString->getOffset(),
                         $qString->getLimit());
-                    foreach ($tickets as $ticket){
+                    foreach ($tickets as $ticket) {
                         $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
                     }
                     $this->response->setContent(json_encode($tickets));
                 } else {
                     $ticket = $ticketsModel->getById($idTicket);
-                    if(!empty($ticket)){
+                    if (!empty($ticket)) {
                         $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
                     }
                     $this->response->setContent(json_encode($ticket));
@@ -50,21 +50,13 @@ class TicketsController extends Controller
                 $this->response->setStatusCode(200)->send();
                 break;
             case 'POST':
-                $newTicket = json_decode(file_get_contents('php://input'), true);
-                $this->isValidTicketStructure($newTicket);
-                $assignedEmployess = $newTicket['employees'];
-
-                $newTicket = $this->formatterNewTicket($newTicket);
-                $newTicketId = $ticketsModel->create($newTicket);
-                $newTicket = $ticketsModel->getById($newTicketId);
-
-                $employeesAssignedTicketsModel = new EmployeesAssignedTicketsModel();
-
-                foreach ($assignedEmployess as $idemployee){
-                    $employeesAssignedTicketsModel->create(['id_employee'=>$idemployee,'id_ticket'=>$newTicketId]);
+                if ($entity === null) {
+                    $this->createTicket();
+                } else {
+                    if ($entity === 'employee') {
+                        $this->assignEmployeeToTicket($idTicket);
+                    }
                 }
-
-                $this->response->setContent(json_encode($newTicket))->setStatusCode(201)->send();
                 break;
             case 'PATCH':
                 $ticket = json_decode(file_get_contents('php://input'), true);
@@ -74,9 +66,51 @@ class TicketsController extends Controller
                 $this->response->setContent(json_encode($ticket))->setStatusCode(201)->send();
                 break;
             case 'DELETE':
-                $ticketsModel->delete($idTicket);
+                if ($entity !== null && $entityId !== null) {
+                    if ($entity === 'employee') {
+                        $assignedEmployeesModel->remove($idTicket, $entityId);
+                    }
+                } else {
+                    $ticketsModel->delete($idTicket);
+                }
                 $this->response->setStatusCode(200)->send();
                 break;
+        }
+    }
+
+    private function createTicket()
+    {
+        $newTicket = json_decode(file_get_contents('php://input'), true);
+        $ticketsModel = new TicketsModel();
+        $this->isValidTicketStructure($newTicket);
+        $assignedEmployess = $newTicket['employees'];
+
+        $newTicket = $this->formatterNewTicket($newTicket);
+        $newTicketId = $ticketsModel->create($newTicket);
+        $newTicket = $ticketsModel->getById($newTicketId);
+
+        $employeesAssignedTicketsModel = new EmployeesAssignedTicketsModel();
+
+        foreach ($assignedEmployess as $idemployee) {
+            $employeesAssignedTicketsModel->create(['id_employee' => $idemployee, 'id_ticket' => $newTicketId]);
+        }
+
+        $this->response->setContent(json_encode($newTicket))->setStatusCode(201)->send();
+    }
+
+    private function assignEmployeeToTicket($idTicket)
+    {
+        $employees = json_decode(file_get_contents('php://input'), true);
+        $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
+        $ticketsModel = new TicketsModel();
+
+        if (is_array($employees['employees'])) {
+            foreach ($employees['employees'] as $employee) {
+                $assignedEmployeesModel->create(["id_employee" => $employee, "id_ticket" => $idTicket]);
+            }
+            $ticket = $ticketsModel->getById($idTicket);
+            $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+            $this->response->setContent(json_encode($ticket))->setStatusCode(201)->send();
         }
     }
 
