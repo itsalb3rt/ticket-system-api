@@ -42,11 +42,21 @@ class TicketsController extends Controller
                     }
                     $this->response->setContent(json_encode($tickets));
                 } else {
-                    $ticket = $ticketsModel->getById($idTicket);
-                    if (!empty($ticket)) {
-                        $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+                    if($entity === 'time-entries'){
+                        $timeEntriesModel = new TimeEntriesModel();
+                        $employeeModel = new EmployeesModel();
+                        $entries = $timeEntriesModel->getByTicketId($idTicket);
+                        foreach ($entries as $entry){
+                            $entry->{'employee'} = $employeeModel->getById($entry->id_employee,'first_name,last_name');
+                        }
+                        $this->response->setContent(json_encode($entries));
+                    }else{
+                        $ticket = $ticketsModel->getById($idTicket);
+                        if (!empty($ticket)) {
+                            $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+                        }
+                        $this->response->setContent(json_encode($ticket));
                     }
-                    $this->response->setContent(json_encode($ticket));
                 }
                 $this->response->setStatusCode(200)->send();
                 break;
