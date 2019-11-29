@@ -34,4 +34,12 @@ class TimeEntriesModel extends Model
             ->where('id_time_entry', '=', $idEntry)
             ->get();
     }
+
+    public function getByTicketId(int $idTicket)
+    {
+        return $this->db()
+            ->table('times_entries')
+            ->where('id_ticket', '=', $idTicket)
+            ->getAll();
+    }
 }
