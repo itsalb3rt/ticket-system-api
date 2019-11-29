@@ -2,6 +2,7 @@
 
 use App\models\Employees\EmployeesModel;
 use App\models\Tickets\TicketsModel;
+use App\models\TimeEntries\TimeEntriesModel;
 use App\plugins\QueryStringPurifier;
 use App\plugins\SecureApi;
 use Symfony\Component\HttpFoundation\Response;
@@ -41,11 +42,21 @@ class TicketsController extends Controller
                     }
                     $this->response->setContent(json_encode($tickets));
                 } else {
-                    $ticket = $ticketsModel->getById($idTicket);
-                    if (!empty($ticket)) {
-                        $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+                    if ($entity === 'time-entries') {
+                        $timeEntriesModel = new TimeEntriesModel();
+                        $employeeModel = new EmployeesModel();
+                        $entries = $timeEntriesModel->getByTicketId($idTicket);
+                        foreach ($entries as $entry) {
+                            $entry->{'employee'} = $employeeModel->getById($entry->id_employee, 'first_name,last_name');
+                        }
+                        $this->response->setContent(json_encode($entries));
+                    } else {
+                        $ticket = $ticketsModel->getById($idTicket);
+                        if (!empty($ticket)) {
+                            $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+                        }
+                        $this->response->setContent(json_encode($ticket));
                     }
-                    $this->response->setContent(json_encode($ticket));
                 }
                 $this->response->setStatusCode(200)->send();
                 break;
@@ -55,6 +66,8 @@ class TicketsController extends Controller
                 } else {
                     if ($entity === 'employee') {
                         $this->assignEmployeeToTicket($idTicket);
+                    } elseif ($entity === 'time-entries') {
+                        $this->setTimeEntriesToTicket($idTicket);
                     }
                 }
                 break;
@@ -69,6 +82,19 @@ class TicketsController extends Controller
                 if ($entity !== null && $entityId !== null) {
                     if ($entity === 'employee') {
                         $assignedEmployeesModel->remove($idTicket, $entityId);
+                    } elseif ($entity === 'time-entries') {
+                        $timeEntriesModel = new TimeEntriesModel();
+                        $entry = $timeEntriesModel->getById($entityId);
+                        if($this->employeeHasAuthorizationToDeleteTimeEntry($entry)){
+                            $timeEntriesModel->delete($entityId);
+                            $this->response->setStatusCode(200)->send();
+                        }else{
+                            $message = [
+                                "code"=>403,
+                                "message"=>"You role not have permission for due that"
+                            ];
+                            $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
+                        }
                     }
                 } else {
                     $ticketsModel->delete($idTicket);
@@ -82,7 +108,7 @@ class TicketsController extends Controller
     {
         $newTicket = json_decode(file_get_contents('php://input'), true);
         $ticketsModel = new TicketsModel();
-        $this->isValidTicketStructure($newTicket);
+        $this->isValidStructure(['subject', 'employees', 'description'], $newTicket);
         $assignedEmployess = $newTicket['employees'];
 
         $newTicket = $this->formatterNewTicket($newTicket);
@@ -114,17 +140,66 @@ class TicketsController extends Controller
         }
     }
 
-    private function isValidTicketStructure($newTicket)
+    private function setTimeEntriesToTicket($idTicket)
     {
-        $basicStructure = ['subject', 'employees', 'description'];
+        $data = json_decode(file_get_contents('php://input'), true);
+        $employeesModel = new EmployeesModel();
+        $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
+        $this->isValidStructure(["from_date", "to_date", "note", "employees"], $data);
+
+        $timeEntriesModel = new TimeEntriesModel();
+        $newEntryId = $timeEntriesModel->create(
+            [
+                "id_ticket" => $idTicket,
+                "id_employee" => $employee->id_employee,
+                "from_date" => $data["from_date"],
+                "to_date" => $data["to_date"],
+                "note" => $data["note"]
+            ]
+        );
+
+        if (!empty($data['employees'])) {
+            $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
+            foreach ($data['employees'] as $employee) {
+                $assignedEmployeesModel->create(["id_employee" => $employee, "id_ticket" => $idTicket]);
+            }
+        }
+
+        $this->response->setContent(json_encode($timeEntriesModel->getById($newEntryId)))->setStatusCode(201)->send();
+    }
+
+    private function employeeHasAuthorizationToDeleteTimeEntry(stdClass $entry):bool
+    {
+        $employeesModel = new EmployeesModel();
+        $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
+
+        if ($employee->id_employee === $entry->id_employee) {
+            return true;
+        } elseif ($employee->role === 'admin') {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Compare tow arrays structure for check is a request strcuture supply by
+     * request.
+     *
+     * This method stop the complete script and return 422 status code with a json structure
+     *
+     * @param $strcuture
+     * @param $targetStructure
+     */
+    private function isValidStructure($strcuture, $targetStructure)
+    {
         $errors = [];
-        if ($newTicket === null)
+        if ($targetStructure === null)
             $errors[] = "Not json found";
 
-        if (is_array($newTicket)) {
-            foreach ($newTicket as $key => $value) {
-                if (!in_array($key, $basicStructure)) {
-                    $errors[] = "$key not found in json";
+        if (is_array($targetStructure)) {
+            foreach ($targetStructure as $key => $value) {
+                if (!in_array($key, $strcuture)) {
+                    $errors[] = "$key not found in structure";
                 }
             }
         }

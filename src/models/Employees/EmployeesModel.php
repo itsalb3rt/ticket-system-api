@@ -29,9 +29,15 @@ class EmployeesModel extends Model
         return $this->db()->insertId();
     }
 
-    public function getById($idEmployee)
+    /**
+     * @param $idEmployee | Int
+     * @param string $columns | String Example: "first_name, last_name, create_at"
+     * @return array|bool|\Buki\Pdox|false|int|mixed|string|void|null
+     */
+    public function getById($idEmployee, string $columns = '*')
     {
         return $this->db()
+            ->select($columns)
             ->table('employees')
             ->where('id_employee', '=', $idEmployee)
             ->get();
