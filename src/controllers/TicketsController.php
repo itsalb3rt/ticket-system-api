@@ -2,6 +2,7 @@
 
 use App\models\Employees\EmployeesModel;
 use App\models\Tickets\TicketsModel;
+use App\models\TimeEntries\TimeEntriesModel;
 use App\plugins\QueryStringPurifier;
 use App\plugins\SecureApi;
 use Symfony\Component\HttpFoundation\Response;
@@ -55,7 +56,7 @@ class TicketsController extends Controller
                 } else {
                     if ($entity === 'employee') {
                         $this->assignEmployeeToTicket($idTicket);
-                    }elseif ($entity === 'time-entries'){
+                    } elseif ($entity === 'time-entries') {
                         $this->setTimeEntriesToTicket($idTicket);
                     }
                 }
@@ -84,7 +85,7 @@ class TicketsController extends Controller
     {
         $newTicket = json_decode(file_get_contents('php://input'), true);
         $ticketsModel = new TicketsModel();
-        $this->isValidStructure(['subject', 'employees', 'description'],$newTicket);
+        $this->isValidStructure(['subject', 'employees', 'description'], $newTicket);
         $assignedEmployess = $newTicket['employees'];
 
         $newTicket = $this->formatterNewTicket($newTicket);
@@ -116,12 +117,32 @@ class TicketsController extends Controller
         }
     }
 
-    private function setTimeEntriesToTicket($idTicket){
+    private function setTimeEntriesToTicket($idTicket)
+    {
         $data = json_decode(file_get_contents('php://input'), true);
         $employeesModel = new EmployeesModel();
         $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
-        var_dump($employee);
-        var_dump($data);
+        $this->isValidStructure(["from_date", "to_date", "note", "employees"], $data);
+
+        $timeEntriesModel = new TimeEntriesModel();
+        $newEntryId = $timeEntriesModel->create(
+            [
+                "id_ticket" => $idTicket,
+                "id_employee" => $employee->id_employee,
+                "from_date" => $data["from_date"],
+                "to_date" => $data["to_date"],
+                "note" => $data["note"]
+            ]
+        );
+
+        if (!empty($data['employees'])) {
+            $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
+            foreach ($data['employees'] as $employee) {
+                $assignedEmployeesModel->create(["id_employee" => $employee, "id_ticket" => $idTicket]);
+            }
+        }
+
+        $this->response->setContent(json_encode($timeEntriesModel->getById($newEntryId)))->setStatusCode(201)->send();
     }
 
     /**
