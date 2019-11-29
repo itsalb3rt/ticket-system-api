@@ -42,15 +42,15 @@ class TicketsController extends Controller
                     }
                     $this->response->setContent(json_encode($tickets));
                 } else {
-                    if($entity === 'time-entries'){
+                    if ($entity === 'time-entries') {
                         $timeEntriesModel = new TimeEntriesModel();
                         $employeeModel = new EmployeesModel();
                         $entries = $timeEntriesModel->getByTicketId($idTicket);
-                        foreach ($entries as $entry){
-                            $entry->{'employee'} = $employeeModel->getById($entry->id_employee,'first_name,last_name');
+                        foreach ($entries as $entry) {
+                            $entry->{'employee'} = $employeeModel->getById($entry->id_employee, 'first_name,last_name');
                         }
                         $this->response->setContent(json_encode($entries));
-                    }else{
+                    } else {
                         $ticket = $ticketsModel->getById($idTicket);
                         if (!empty($ticket)) {
                             $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
@@ -82,6 +82,19 @@ class TicketsController extends Controller
                 if ($entity !== null && $entityId !== null) {
                     if ($entity === 'employee') {
                         $assignedEmployeesModel->remove($idTicket, $entityId);
+                    } elseif ($entity === 'time-entries') {
+                        $timeEntriesModel = new TimeEntriesModel();
+                        $entry = $timeEntriesModel->getById($entityId);
+                        if($this->employeeHasAuthorizationToDeleteTimeEntry($entry)){
+                            $timeEntriesModel->delete($entityId);
+                            $this->response->setStatusCode(200)->send();
+                        }else{
+                            $message = [
+                                "code"=>403,
+                                "message"=>"You role not have permission for due that"
+                            ];
+                            $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
+                        }
                     }
                 } else {
                     $ticketsModel->delete($idTicket);
@@ -153,6 +166,19 @@ class TicketsController extends Controller
         }
 
         $this->response->setContent(json_encode($timeEntriesModel->getById($newEntryId)))->setStatusCode(201)->send();
+    }
+
+    private function employeeHasAuthorizationToDeleteTimeEntry(stdClass $entry):bool
+    {
+        $employeesModel = new EmployeesModel();
+        $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
+
+        if ($employee->id_employee === $entry->id_employee) {
+            return true;
+        } elseif ($employee->role === 'admin') {
+            return true;
+        }
+        return false;
     }
 
     /**
