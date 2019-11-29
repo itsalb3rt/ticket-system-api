@@ -55,6 +55,8 @@ class TicketsController extends Controller
                 } else {
                     if ($entity === 'employee') {
                         $this->assignEmployeeToTicket($idTicket);
+                    }elseif ($entity === 'time-entries'){
+                        $this->setTimeEntriesToTicket($idTicket);
                     }
                 }
                 break;
@@ -82,7 +84,7 @@ class TicketsController extends Controller
     {
         $newTicket = json_decode(file_get_contents('php://input'), true);
         $ticketsModel = new TicketsModel();
-        $this->isValidTicketStructure($newTicket);
+        $this->isValidStructure(['subject', 'employees', 'description'],$newTicket);
         $assignedEmployess = $newTicket['employees'];
 
         $newTicket = $this->formatterNewTicket($newTicket);
@@ -114,17 +116,33 @@ class TicketsController extends Controller
         }
     }
 
-    private function isValidTicketStructure($newTicket)
+    private function setTimeEntriesToTicket($idTicket){
+        $data = json_decode(file_get_contents('php://input'), true);
+        $employeesModel = new EmployeesModel();
+        $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
+        var_dump($employee);
+        var_dump($data);
+    }
+
+    /**
+     * Compare tow arrays structure for check is a request strcuture supply by
+     * request.
+     *
+     * This method stop the complete script and return 422 status code with a json structure
+     *
+     * @param $strcuture
+     * @param $targetStructure
+     */
+    private function isValidStructure($strcuture, $targetStructure)
     {
-        $basicStructure = ['subject', 'employees', 'description'];
         $errors = [];
-        if ($newTicket === null)
+        if ($targetStructure === null)
             $errors[] = "Not json found";
 
-        if (is_array($newTicket)) {
-            foreach ($newTicket as $key => $value) {
-                if (!in_array($key, $basicStructure)) {
-                    $errors[] = "$key not found in json";
+        if (is_array($targetStructure)) {
+            foreach ($targetStructure as $key => $value) {
+                if (!in_array($key, $strcuture)) {
+                    $errors[] = "$key not found in structure";
                 }
             }
         }
