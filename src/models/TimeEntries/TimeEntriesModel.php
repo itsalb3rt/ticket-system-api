@@ -42,4 +42,11 @@ class TimeEntriesModel extends Model
             ->where('id_ticket', '=', $idTicket)
             ->getAll();
     }
+
+    public function delete($idEntry){
+        $this->db()
+            ->table('times_entries')
+            ->where('id_time_entry','=',$idEntry)
+            ->delete();
+    }
 }
