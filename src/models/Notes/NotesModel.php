@@ -28,7 +28,9 @@ class NotesModel extends Model
     public function getById(int $idNote)
     {
         return $this->db()
+            ->select('id_note,note,notes.create_at,notes.id_ticket,employees.id_employee,employees.first_name,employees.last_name,employees.email')
             ->table('notes')
+            ->innerJoin('employees','employees.id_employee','=','notes.id_employee')
             ->where('id_note', '=', $idNote)
             ->get();
     }
@@ -36,8 +38,9 @@ class NotesModel extends Model
     public function getAll($fields, $filter, $oderBy, $orderDir, $offset, $limit)
     {
         return $this->db()
-            ->select($fields)
+            ->select('id_note,note,notes.create_at,notes.id_ticket,employees.id_employee,employees.first_name,employees.last_name,employees.email')
             ->table('notes')
+            ->innerJoin('employees','employees.id_employee','=','notes.id_employee')
             ->where($filter)
             ->orderBy($oderBy, $orderDir)
             ->offset($offset)
