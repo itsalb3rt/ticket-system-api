@@ -55,6 +55,34 @@ class EmployeesController extends Controller
                 $this->response->setContent(json_encode($createdEmployee))->setStatusCode(201)->send();
                 break;
             case 'PATCH':
+                $employee = json_decode(file_get_contents('php://input'), true);
+                $employeesModel = new EmployeesModel();
+
+                if ($this->employeeHasAuthorization($employeesModel->getById($idEmployee))) {
+
+                    if (isset($employee['password'])) {
+
+                        if (strlen($employee['password']) > 0) {
+                            $this->isPasswordSecure($employee);
+                            $employee['password'] = $this->passwordHasing($employee['password']);
+                            unset($employee['confirm_password']);
+                        }
+                        unset($employee['password']);
+                        unset($employee['confirm_password']);
+                    }
+
+                    $employeesModel->update($idEmployee, $employee);
+                    $employee = $employeesModel->getById($idEmployee);
+                    unset($employee->password);
+                    unset($employee->token);
+                    $this->response->setContent(json_encode($employee))->setStatusCode(200)->send();
+                } else {
+                    $message = [
+                        "code" => 403,
+                        "message" => "You role not have permission for due that"
+                    ];
+                    $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
+                }
                 break;
         }
     }
@@ -106,10 +134,24 @@ class EmployeesController extends Controller
         return $formatterEmployee;
     }
 
-    private function removeConfidentialInformationFromEmployees($employees){
-        foreach ($employees as $employee){
+    private function removeConfidentialInformationFromEmployees($employees)
+    {
+        foreach ($employees as $employee) {
             unset($employee->password);
             unset($employee->token);
         }
+    }
+
+    private function employeeHasAuthorization(stdClass $employeeToUpdate): bool
+    {
+        $employeesModel = new EmployeesModel();
+        $employeeRequest = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
+
+        if ($employeeToUpdate->id_employee === $employeeRequest->id_employee) {
+            return true;
+        } elseif ($employeeRequest->role === 'admin') {
+            return true;
+        }
+        return false;
     }
 }
