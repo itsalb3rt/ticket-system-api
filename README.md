@@ -43,11 +43,11 @@ All users can create notes in tickets, this is like a "comments" for more inform
 
 1 – Clone this repository
 ```bash
-$ https://github.com/itsalb3rt/ticket-system-api.git
+$ git clone https://github.com/itsalb3rt/ticket-system-api.git
 ```
 2 – Run
 ```bash
-docker-compose up –build
+$ docker-compose up --build
 ```
 :tada: Now you API is running on http://localhost:5018/
 
@@ -70,7 +70,7 @@ The API is developed in PHP with some Symfony components and third-party librari
 
 1 – Clone this repository in your php environment
 ```bash
-$ https://github.com/itsalb3rt/ticket-system-api.git
+$ git clone https://github.com/itsalb3rt/ticket-system-api.git
 
 ```
 2 – Install all dependencies
