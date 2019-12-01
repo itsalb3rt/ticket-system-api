@@ -74,9 +74,12 @@ class SecureApi
         $employeeModel = new EmployeesModel();
         $employee = $employeeModel->getByToken($employeeToken);
         if (empty($employee)) {
-            $this->response->setContent('Forbidden');
-            $this->response->setStatusCode(403);
-            $this->response->send();
+            $message = [
+                "code"=>403,
+                "message"=>"Forbidden"
+            ];
+            $this->response->headers->set('content-type', 'application/json');
+            $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
             die();
         }
     }
