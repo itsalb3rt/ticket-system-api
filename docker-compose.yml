@@ -1,21 +1,24 @@
 version: '2'
-
 services:
   db:
     image: mysql:5.7
-    container_name: mysqldb
+    volumes:
+      - ./etc/db:/docker-entrypoint-initdb.d
+      - mysqldata:/var/lib/mysql
     environment:
       MYSQL_ROOT_PASSWORD: naGeEcsztjVn1nDs
       MYSQL_DATABASE: ticket_system
       MYSQL_USER: ticket_system
       MYSQL_PASSWORD: naGeEcsztjVn1nDs
     ports:
-      - "3306:3306"
+      - 3306:3306
   web:
     build: .
     image: php:7.2-apache
-    container_name: ticket_system_api
     depends_on:
       - db
     ports:
-      - "8100:80"
+      - "5018:80"
+
+volumes:
+  mysqldata:
