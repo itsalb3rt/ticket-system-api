@@ -87,7 +87,7 @@ class QueryStringPurifier
     {
         $request = new Request($_GET);
         if ($request->query->get('sort')) {
-            return strip_tags(stripslashes($_GET['sort']));
+            return strip_tags($request->query->get('sort'));
         } else {
             return '1';
         }
@@ -97,7 +97,7 @@ class QueryStringPurifier
     {
         $request = new Request($_GET);
         if ($request->query->get('sorting')) {
-            if (strtolower($_GET['sorting']) == 'desc') {
+            if (strtolower($request->query->get('sorting')) == 'desc') {
                 return 'DESC';
             } else {
                 return 'ASC';
@@ -111,7 +111,7 @@ class QueryStringPurifier
     {
         $request = new Request($_GET);
         if ($request->query->get('limit')) {
-            return strip_tags(stripslashes($_GET['limit']));
+            return strip_tags($request->query->get('limit'));
         } else {
             return null;
         }
@@ -121,7 +121,7 @@ class QueryStringPurifier
     {
         $request = new Request($_GET);
         if ($request->query->get('offset')) {
-            return strip_tags(stripslashes($_GET['offset']));
+            return strip_tags($request->query->get('offset'));
         } else {
             return null;
         }
