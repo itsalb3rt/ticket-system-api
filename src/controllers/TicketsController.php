@@ -185,7 +185,7 @@ class TicketsController extends Controller
 
         foreach ($targetStructure as $key => $value) {
             if (!in_array($key, $strcuture)) {
-                $errors[] = "$key not found in structure";
+                $errors[] = "$key not found in structure. $value";
             }
         }
 
