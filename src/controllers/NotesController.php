@@ -46,7 +46,14 @@ class NotesController extends Controller
                 $notesModel = new NotesModel();
 
                 $note = json_decode(file_get_contents('php://input'), true);
-                $this->isValidStructure(['id_ticket', 'note'], $note);
+
+                $structureDiff = $this->getStructureDiff(['id_ticket', 'note'], $note);
+
+                if (count($structureDiff) > 0) {
+                    $this->sendValidationFailed($structureDiff);
+                    return;
+                }
+
                 $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
                 $newNote = $notesModel->create(
                     [
@@ -65,13 +72,9 @@ class NotesController extends Controller
                 if ($this->employeeHasAuthorizationToDeleteTimeEntry($note)) {
                     $notesModel->delete($idNote);
                     $this->response->setStatusCode(200)->send();
-                } else {
-                    $message = [
-                        "code" => 403,
-                        "message" => "You role not have permission for due that"
-                    ];
-                    $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
+                    return;
                 }
+                $this->sendForbiddenResponse('You role not have permission for due that');
                 break;
         }
     }
@@ -80,35 +83,40 @@ class NotesController extends Controller
      * Compare tow arrays structure for check is a request strcuture supply by
      * request.
      *
-     * This method stop the complete script and return 422 status code with a json structure
-     *
      * @param $strcuture
      * @param $targetStructure
+     * @return array
      */
-    private function isValidStructure(array $strcuture, array $targetStructure)
+    private function getStructureDiff($strcuture, $targetStructure): array
     {
         $errors = [];
-        if ($targetStructure === null)
+        if ($targetStructure === null || !is_array($targetStructure))
             $errors[] = "Not json found";
 
-        if (is_array($targetStructure)) {
-            foreach ($targetStructure as $key => $value) {
-                if (!in_array($key, $strcuture)) {
-                    $errors[] = "$key not found in structure";
-                }
+        foreach ($targetStructure as $key => $value) {
+            if (!in_array($key, $strcuture)) {
+                $errors[] = "$key not found in structure. $value";
             }
         }
 
-        if (count($errors) > 0) {
-            $message = [
-                "code" => 422,
-                "message" => "Validation failed",
-                "errors" => $errors
-            ];
-            $this->response->setContent(json_encode($message))->setStatusCode(422)->send();
-            die();
-        }
+        return $errors;
     }
+
+    /**
+     * Send HTTP 422 code and json with the errors on validation
+     *
+     * @param $errors
+     */
+    private function sendValidationFailed($errors)
+    {
+        $message = [
+            "code" => 422,
+            "message" => "Validation failed",
+            "errors" => $errors
+        ];
+        $this->response->setContent(json_encode($message))->setStatusCode(422)->send();
+    }
+
 
     /**
      * Check if the user request for delete have a permission to due the action
@@ -128,5 +136,17 @@ class NotesController extends Controller
             return true;
         }
         return false;
+    }
+
+    /**
+     * Send 403 HTTP status code and body message
+     * @param $bodyMessage
+     */
+    private function sendForbiddenResponse($bodyMessage){
+        $message = [
+            "code" => 403,
+            "message" => $bodyMessage
+        ];
+        $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
     }
 }
