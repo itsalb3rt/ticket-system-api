@@ -34,12 +34,13 @@ class NotesController extends Controller
                         $qString->getSorting(),
                         $qString->getOffset(),
                         $qString->getLimit());
-                    $this->response->setContent(json_encode($notes));
-                } else {
-                    $notes = $notesModel->getById($idNote);
-                    $this->response->setContent(json_encode($notes));
+                    $this->response->setContent(json_encode($notes))->setStatusCode(200)->send();
+                    return;
                 }
-                $this->response->setStatusCode(200)->send();
+
+                $notes = $notesModel->getById($idNote);
+                $this->response->setContent(json_encode($notes))->setStatusCode(200)->send();
+
                 break;
             case 'POST':
                 $employeesModel = new EmployeesModel();
@@ -107,7 +108,7 @@ class NotesController extends Controller
      *
      * @param $errors
      */
-    private function sendValidationFailed($errors)
+    private function sendValidationFailed(array $errors):void
     {
         $message = [
             "code" => 422,
@@ -142,7 +143,8 @@ class NotesController extends Controller
      * Send 403 HTTP status code and body message
      * @param $bodyMessage
      */
-    private function sendForbiddenResponse($bodyMessage){
+    private function sendForbiddenResponse(string $bodyMessage):void
+    {
         $message = [
             "code" => 403,
             "message" => $bodyMessage
