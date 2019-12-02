@@ -185,7 +185,6 @@ class TicketsController extends Controller
                 "errors" => $errors
             ];
             $this->response->setContent(json_encode($message))->setStatusCode(422)->send();
-            die();
         }
     }
 
@@ -208,10 +207,10 @@ class TicketsController extends Controller
      */
     private function getAssignedEmployees(array $tickets): array
     {
-        $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
+        $assignedModel = new EmployeesAssignedTicketsModel();
         $result = [];
         foreach ($tickets as $ticket) {
-            $result[] = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+            $result[] = $assignedModel->getByTicketId($ticket->id_ticket);
         }
         return $result;
     }
@@ -249,16 +248,17 @@ class TicketsController extends Controller
     {
         $timeEntriesModel = new TimeEntriesModel();
         $entry = $timeEntriesModel->getById($entityId);
+
         if ($this->employeeHasAuthorizationToDeleteTimeEntry($entry)) {
             $timeEntriesModel->delete($entityId);
             $this->response->setStatusCode(200)->send();
-        } else {
-            $message = [
-                "code" => 403,
-                "message" => "You role not have permission for due that"
-            ];
-            $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
         }
+
+        $message = [
+            "code" => 403,
+            "message" => "You role not have permission for due that"
+        ];
+        $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
     }
 
     /**
@@ -271,9 +271,9 @@ class TicketsController extends Controller
      * @param $idTicket
      */
     private function saveAssigneEmployees(array $employees,int $idTicket){
-        $employeesAssignedTicketsModel = new EmployeesAssignedTicketsModel();
+        $employeesAssigned = new EmployeesAssignedTicketsModel();
         foreach ($employees as $idemployee) {
-            $employeesAssignedTicketsModel->create(['id_employee' => $idemployee, 'id_ticket' => $idTicket]);
+            $employeesAssigned->create(['id_employee' => $idemployee, 'id_ticket' => $idTicket]);
         }
     }
 
