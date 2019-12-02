@@ -175,7 +175,7 @@ class TicketsController extends Controller
      *
      * @param $strcuture
      * @param $targetStructure
-     * @return bool
+     * @return array
      */
     private function getStructureDiff($strcuture, $targetStructure):array
     {
