@@ -8,21 +8,24 @@
 
 namespace App\plugins;
 
+use Symfony\Component\HttpFoundation\Request;
 
 class QueryStringPurifier
 {
 
+
     public function fieldsToFilter()
     {
-        if (empty($_GET)) {
+        $request = new Request($_GET);
+        if (count($request->query) == 1) {
             return null;
-        }else{
-            //Nombre de campos que ya existen y que pueden venir en el queryString
-            $omitFields = ['p','offset','limit','sort','sorting','fields','offset'];
+        } else {
+            //Define the list of query string posible in que query string for not get one of this
+            $omitFields = ['p', 'offset', 'limit', 'sort', 'sorting', 'fields', 'offset'];
             $data = [];
-            foreach ($_GET as $key => $value){
-                if(!in_array($key,$omitFields)){
-                    $data[$key] =$value;
+            foreach ($request->query as $key => $value) {
+                if (!in_array($key, $omitFields)) {
+                    $data[$key] = $request->query->get($key);
                 }
             }
             return $data;
@@ -31,22 +34,23 @@ class QueryStringPurifier
 
     public function fieldsToFilterInSerachServices()
     {
-        if (empty($_GET)) {
+        $request = new Request($_GET);
+        if (count($request->query) == 1) {
             return null;
-        }else{
+        } else {
             //Nombre de campos que ya existen y que pueden venir en el queryString
-            $omitFields = ['p','offset','limit','sort','sorting','fields','offset','query'];
+            $omitFields = ['p', 'offset', 'limit', 'sort', 'sorting', 'fields', 'offset', 'query'];
             $data = [];
-            foreach ($_GET as $key => $value){
-                if(!in_array($key,$omitFields)){
-                    $data[$this->getCompleteFieldName($key)] =$value;
+            foreach ($request->query as $key => $value) {
+                if (!in_array($key, $omitFields)) {
+                    $data[$this->getCompleteFieldName($key)] = $value;
                 }
             }
             return $data;
         }
     }
 
-    private function getCompleteFieldName(string $field):string
+    private function getCompleteFieldName(string $field): string
     {
         $result = '';
 
@@ -70,8 +74,10 @@ class QueryStringPurifier
 
     public function getFields()
     {
-        if (isset($_GET['fields'])) {
-            return $this->getPurifyFields($_GET['fields']);
+        $request = new Request($_GET);
+
+        if ($request->query->get('fields')) {
+            return $this->getPurifyFields($request->query->get('fields'));
         } else {
             return '*';
         }
@@ -79,8 +85,9 @@ class QueryStringPurifier
 
     public function getOrderBy()
     {
-        if (isset($_GET['sort'])) {
-            return strip_tags(stripslashes($_GET['sort']));
+        $request = new Request($_GET);
+        if ($request->query->get('sort')) {
+            return strip_tags($request->query->get('sort'));
         } else {
             return '1';
         }
@@ -88,8 +95,9 @@ class QueryStringPurifier
 
     public function getSorting()
     {
-        if (isset($_GET['sorting'])) {
-            if (strtolower($_GET['sorting']) == 'desc') {
+        $request = new Request($_GET);
+        if ($request->query->get('sorting')) {
+            if (strtolower($request->query->get('sorting')) == 'desc') {
                 return 'DESC';
             } else {
                 return 'ASC';
@@ -101,8 +109,9 @@ class QueryStringPurifier
 
     public function getLimit()
     {
-        if (isset($_GET['limit'])) {
-            return strip_tags(stripslashes($_GET['limit']));
+        $request = new Request($_GET);
+        if ($request->query->get('limit')) {
+            return strip_tags($request->query->get('limit'));
         } else {
             return null;
         }
@@ -110,8 +119,9 @@ class QueryStringPurifier
 
     public function getOffset()
     {
-        if (isset($_GET['offset'])) {
-            return strip_tags(stripslashes($_GET['offset']));
+        $request = new Request($_GET);
+        if ($request->query->get('offset')) {
+            return strip_tags($request->query->get('offset'));
         } else {
             return null;
         }
@@ -124,10 +134,10 @@ class QueryStringPurifier
         $fieldCount = count($fields) - 1;
         foreach ($fields as $key => $value) {
             if ($fieldCount == $key) {
-                $temp .= strip_tags(stripslashes($value));
-            } else {
-                $temp .= strip_tags(stripslashes($value)) . ',';
+                $temp .= strip_tags($value);
+                return;
             }
+            $temp .= strip_tags($value) . ',';
         }
         return $temp;
     }

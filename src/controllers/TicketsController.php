@@ -24,13 +24,11 @@ class TicketsController extends Controller
 
     public function tickets($idTicket = null, $entity = null, $entityId = null)
     {
-        $ticketsModel = new TicketsModel();
-        $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
-
         switch ($this->request->server->get('REQUEST_METHOD')) {
             case 'GET':
                 if ($idTicket === null) {
                     $qString = new QueryStringPurifier();
+                    $ticketsModel = new TicketsModel();
                     $tickets = $ticketsModel->getAll($qString->getFields(),
                         $qString->fieldsToFilter(),
                         $qString->getOrderBy(),
@@ -38,35 +36,40 @@ class TicketsController extends Controller
                         $qString->getOffset(),
                         $qString->getLimit());
 
-                    foreach ($tickets as $ticket){
+                    foreach ($tickets as $ticket) {
                         $ticket->{'employees'} = $this->getAssignedEmployees($ticket);
                     }
                     $this->response->setContent(json_encode($tickets));
-                } else {
-                    if ($entity === 'time-entries') {
-                        $entries = $this->getTimeEntriesByIdTicket($idTicket);
-                        $this->response->setContent(json_encode($entries));
-                    } else if ($entity === null) {
-                        $ticket = $this->getTicketById($idTicket);
-                        if (!empty($ticket)) $ticket->{'employees'} = $this->getAssignedEmployees($ticket);
-                        $this->response->setContent(json_encode($ticket));
-                    }
+                    $this->response->setStatusCode(200)->send();
+                    return;
+                }
+
+                if ($entity === 'time-entries') {
+                    $entries = $this->getTimeEntriesByIdTicket($idTicket);
+                    $this->response->setContent(json_encode($entries));
+                } else if ($entity === null) {
+                    $ticket = $this->getTicketById($idTicket);
+                    if (!empty($ticket)) $ticket->{'employees'} = $this->getAssignedEmployees($ticket);
+                    $this->response->setContent(json_encode($ticket));
                 }
                 $this->response->setStatusCode(200)->send();
                 break;
             case 'POST':
                 if ($entity === null) {
                     $this->createTicket();
-                } else {
-                    if ($entity === 'employee') {
-                        $this->assignEmployeeToTicket($idTicket);
-                    } elseif ($entity === 'time-entries') {
-                        $this->setTimeEntriesToTicket($idTicket);
-                    }
+                    return;
+                }
+
+                if ($entity === 'employee') {
+                    $this->assignEmployeeToTicket($idTicket);
+                } elseif ($entity === 'time-entries') {
+                    $this->setTimeEntriesToTicket($idTicket);
                 }
                 break;
             case 'PATCH':
                 $ticket = json_decode(file_get_contents('php://input'), true);
+
+                $ticketsModel = new TicketsModel();
                 $ticketsModel->update($idTicket, $ticket);
                 $ticket = $ticketsModel->getById($idTicket);
 
@@ -75,13 +78,17 @@ class TicketsController extends Controller
             case 'DELETE':
                 if ($entity !== null && $entityId !== null) {
                     if ($entity === 'employee') {
-                        $assignedEmployeesModel->remove($idTicket, $entityId);
+                        $assignedModel = new EmployeesAssignedTicketsModel();
+                        $assignedModel->remove($idTicket, $entityId);
                     } elseif ($entity === 'time-entries') {
                         $this->deleteTimesEntries($entityId);
                     }
-                } else {
-                    $ticketsModel->delete($idTicket);
+                    return;
                 }
+
+                $ticketsModel = new TicketsModel();
+                $ticketsModel->delete($idTicket);
+
                 $this->response->setStatusCode(200)->send();
                 break;
         }
@@ -94,19 +101,19 @@ class TicketsController extends Controller
 
         $structureDiff = $this->getStructureDiff(['subject', 'employees', 'description'], $newTicket);
 
-        if(count($structureDiff) > 0 ){
+        if (count($structureDiff) > 0) {
             $this->sendValidationFailed($structureDiff);
-        }else{
-            $assignedEmployess = $newTicket['employees'];
-
-            $newTicket = $this->formatterNewTicket($newTicket);
-            $newTicketId = $ticketsModel->create($newTicket);
-            $newTicket = $ticketsModel->getById($newTicketId);
-
-            $this->saveAssigneEmployees($assignedEmployess, $newTicketId);
-
-            $this->response->setContent(json_encode($newTicket))->setStatusCode(201)->send();
+            return;
         }
+        $assignedEmployess = $newTicket['employees'];
+
+        $newTicket = $this->formatterNewTicket($newTicket);
+        $newTicketId = $ticketsModel->create($newTicket);
+        $newTicket = $ticketsModel->getById($newTicketId);
+
+        $this->saveAssigneEmployees($assignedEmployess, $newTicketId);
+
+        $this->response->setContent(json_encode($newTicket))->setStatusCode(201)->send();
 
     }
 
@@ -132,28 +139,30 @@ class TicketsController extends Controller
 
         $structureDiff = $this->getStructureDiff(["from_date", "to_date", "note", "employees"], $data);
 
-        if(count($structureDiff) > 0 ){
+        if (count($structureDiff) > 0) {
             $this->sendValidationFailed($structureDiff);
-        }else{
-            $timeEntriesModel = new TimeEntriesModel();
-            $newEntryId = $timeEntriesModel->create(
-                [
-                    "id_ticket" => $idTicket,
-                    "id_employee" => $employee->id_employee,
-                    "from_date" => $data["from_date"],
-                    "to_date" => $data["to_date"],
-                    "note" => $data["note"]
-                ]
-            );
-
-            if (!empty($data['employees'])) {
-                $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
-                foreach ($data['employees'] as $employee) {
-                    $assignedEmployeesModel->create(["id_employee" => $employee, "id_ticket" => $idTicket]);
-                }
-            }
-            $this->response->setContent(json_encode($timeEntriesModel->getById($newEntryId)))->setStatusCode(201)->send();
+            return;
         }
+
+        $timeEntriesModel = new TimeEntriesModel();
+        $newEntryId = $timeEntriesModel->create(
+            [
+                "id_ticket" => $idTicket,
+                "id_employee" => $employee->id_employee,
+                "from_date" => $data["from_date"],
+                "to_date" => $data["to_date"],
+                "note" => $data["note"]
+            ]
+        );
+
+        if (!empty($data['employees'])) {
+            $assignedModel = new EmployeesAssignedTicketsModel();
+            foreach ($data['employees'] as $employee) {
+                $assignedModel->create(["id_employee" => $employee, "id_ticket" => $idTicket]);
+            }
+        }
+        $this->response->setContent(json_encode($timeEntriesModel->getById($newEntryId)))->setStatusCode(201)->send();
+
     }
 
     private function employeeHasAuthorizationToDeleteTimeEntry(stdClass $entry): bool
@@ -175,9 +184,9 @@ class TicketsController extends Controller
      *
      * @param $strcuture
      * @param $targetStructure
-     * @return bool
+     * @return array
      */
-    private function getStructureDiff($strcuture, $targetStructure):array
+    private function getStructureDiff($strcuture, $targetStructure): array
     {
         $errors = [];
         if ($targetStructure === null || !is_array($targetStructure))
@@ -185,7 +194,7 @@ class TicketsController extends Controller
 
         foreach ($targetStructure as $key => $value) {
             if (!in_array($key, $strcuture)) {
-                $errors[] = "$key not found in structure";
+                $errors[] = "$key not found in structure. $value";
             }
         }
 
