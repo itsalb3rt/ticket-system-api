@@ -37,24 +37,15 @@ class TicketsController extends Controller
                         $qString->getSorting(),
                         $qString->getOffset(),
                         $qString->getLimit());
-                    foreach ($tickets as $ticket) {
-                        $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
-                    }
+                    $tickets->{'employees'} = $this->getAssignedEmployees($tickets);
                     $this->response->setContent(json_encode($tickets));
                 } else {
                     if ($entity === 'time-entries') {
-                        $timeEntriesModel = new TimeEntriesModel();
-                        $employeeModel = new EmployeesModel();
-                        $entries = $timeEntriesModel->getByTicketId($idTicket);
-                        foreach ($entries as $entry) {
-                            $entry->{'employee'} = $employeeModel->getById($entry->id_employee, 'first_name,last_name');
-                        }
+                        $entries = $this->getTimeEntriesByIdTicket($idTicket);
                         $this->response->setContent(json_encode($entries));
-                    } else {
-                        $ticket = $ticketsModel->getById($idTicket);
-                        if (!empty($ticket)) {
-                            $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
-                        }
+                    } else if ($entity === null) {
+                        $ticket = $this->getTicketById($idTicket);
+                        if (!empty($ticket)) $ticket->{'employees'} = $this->getAssignedEmployees([$ticket]);
                         $this->response->setContent(json_encode($ticket));
                     }
                 }
@@ -83,18 +74,7 @@ class TicketsController extends Controller
                     if ($entity === 'employee') {
                         $assignedEmployeesModel->remove($idTicket, $entityId);
                     } elseif ($entity === 'time-entries') {
-                        $timeEntriesModel = new TimeEntriesModel();
-                        $entry = $timeEntriesModel->getById($entityId);
-                        if($this->employeeHasAuthorizationToDeleteTimeEntry($entry)){
-                            $timeEntriesModel->delete($entityId);
-                            $this->response->setStatusCode(200)->send();
-                        }else{
-                            $message = [
-                                "code"=>403,
-                                "message"=>"You role not have permission for due that"
-                            ];
-                            $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
-                        }
+                        $this->deleteTimesEntries($entityId);
                     }
                 } else {
                     $ticketsModel->delete($idTicket);
@@ -115,11 +95,7 @@ class TicketsController extends Controller
         $newTicketId = $ticketsModel->create($newTicket);
         $newTicket = $ticketsModel->getById($newTicketId);
 
-        $employeesAssignedTicketsModel = new EmployeesAssignedTicketsModel();
-
-        foreach ($assignedEmployess as $idemployee) {
-            $employeesAssignedTicketsModel->create(['id_employee' => $idemployee, 'id_ticket' => $newTicketId]);
-        }
+        $this->saveAssigneEmployees($assignedEmployess,$newTicketId);
 
         $this->response->setContent(json_encode($newTicket))->setStatusCode(201)->send();
     }
@@ -127,15 +103,13 @@ class TicketsController extends Controller
     private function assignEmployeeToTicket($idTicket)
     {
         $employees = json_decode(file_get_contents('php://input'), true);
-        $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
         $ticketsModel = new TicketsModel();
 
         if (is_array($employees['employees'])) {
-            foreach ($employees['employees'] as $employee) {
-                $assignedEmployeesModel->create(["id_employee" => $employee, "id_ticket" => $idTicket]);
-            }
+            $this->saveAssigneEmployees($employees['employees'],$idTicket);
+
             $ticket = $ticketsModel->getById($idTicket);
-            $ticket->{'employees'} = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+            $ticket->{'employees'} = $this->getAssignedEmployees([$ticket]);
             $this->response->setContent(json_encode($ticket))->setStatusCode(201)->send();
         }
     }
@@ -168,7 +142,7 @@ class TicketsController extends Controller
         $this->response->setContent(json_encode($timeEntriesModel->getById($newEntryId)))->setStatusCode(201)->send();
     }
 
-    private function employeeHasAuthorizationToDeleteTimeEntry(stdClass $entry):bool
+    private function employeeHasAuthorizationToDeleteTimeEntry(stdClass $entry): bool
     {
         $employeesModel = new EmployeesModel();
         $employee = $employeesModel->getByToken(str_replace('Bearer ', '', $this->request->headers->get('authorization')));
@@ -225,4 +199,82 @@ class TicketsController extends Controller
 
         return $formatter;
     }
+
+    /**
+     * Return all employees assigned on ticket(s), this use on a single ticket
+     * and group ticket
+     * @param $tickets
+     * @return array
+     */
+    private function getAssignedEmployees(array $tickets): array
+    {
+        $assignedEmployeesModel = new EmployeesAssignedTicketsModel();
+        $result = [];
+        foreach ($tickets as $ticket) {
+            $result[] = $assignedEmployeesModel->getByTicketId($ticket->id_ticket);
+        }
+        return $result;
+    }
+
+    /**
+     * Return all time entries by id ticket
+     * @param int $idTicket
+     * @return stdClass
+     */
+    private function getTimeEntriesByIdTicket(int $idTicket): array
+    {
+        $timeEntriesModel = new TimeEntriesModel();
+        $employeeModel = new EmployeesModel();
+        $entries = $timeEntriesModel->getByTicketId($idTicket);
+
+        foreach ($entries as $entry) {
+            $entry->{'employee'} = $employeeModel->getById($entry->id_employee, 'first_name,last_name');
+        }
+        return $entries;
+    }
+
+    /**
+     * Return ticket data by ticket id on request of ticket/{id}
+     * @param int $idTicket
+     * @return array|bool|\Buki\Pdox|false|int|mixed|string|void|null
+     */
+    private function getTicketById(int $idTicket)
+    {
+        $ticketsModel = new TicketsModel();
+        $ticket = $ticketsModel->getById($idTicket);
+        return $ticket;
+    }
+
+    private function deleteTimesEntries(int $entityId): void
+    {
+        $timeEntriesModel = new TimeEntriesModel();
+        $entry = $timeEntriesModel->getById($entityId);
+        if ($this->employeeHasAuthorizationToDeleteTimeEntry($entry)) {
+            $timeEntriesModel->delete($entityId);
+            $this->response->setStatusCode(200)->send();
+        } else {
+            $message = [
+                "code" => 403,
+                "message" => "You role not have permission for due that"
+            ];
+            $this->response->setContent(json_encode($message))->setStatusCode(403)->send();
+        }
+    }
+
+    /**
+     * Save all employees assigne on ticket, this receive array of ids of
+     * employees
+     *
+     * Example: [1 , 2, 10]
+     *
+     * @param $employees
+     * @param $idTicket
+     */
+    private function saveAssigneEmployees(array $employees,int $idTicket){
+        $employeesAssignedTicketsModel = new EmployeesAssignedTicketsModel();
+        foreach ($employees as $idemployee) {
+            $employeesAssignedTicketsModel->create(['id_employee' => $idemployee, 'id_ticket' => $idTicket]);
+        }
+    }
+
 }
