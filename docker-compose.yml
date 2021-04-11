@@ -12,13 +12,25 @@ services:
       MYSQL_PASSWORD: naGeEcsztjVn1nDs
     ports:
       - 3306:3306
-  web:
+  api:
     build: .
     image: php:7.2-apache
     depends_on:
       - db
     ports:
-      - "5018:80"
+      - ${PORT}:80
+    labels: 
+      - "traefik.http.routers.real-state-admin-api.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.real-state-admin-api.entrypoints=websecure"
+      - "traefik.http.routers.real-state-admin-api.tls.certresolver=myresolver"
+      - "traefik.http.services.real-state-admin-api.loadbalancer.server.port=${PORT}"
+    networks:
+      - traefik-network
 
 volumes:
   mysqldata:
+
+networks:
+  traefik-network:
+    external:
+      name: traefik_proxynet
